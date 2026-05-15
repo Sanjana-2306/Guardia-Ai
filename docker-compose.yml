@@ -1,0 +1,67 @@
+version: '3.9'
+
+services:
+  # ── Backend ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: guardia-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/guardiadb
+      - POSTGRES_USER=${POSTGRES_USER:-guardia}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-guardiapass}
+      - JWT_SECRET=${JWT_SECRET:-GuardiaAI-Super-Secret-Key-2024-Must-Be-At-Least-256-Bits-Long!}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - guardia-net
+    restart: unless-stopped
+
+  # ── Frontend ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: guardia-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - guardia-net
+    restart: unless-stopped
+
+  # ── PostgreSQL ───────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: guardia-postgres
+    environment:
+      POSTGRES_DB:       guardiadb
+      POSTGRES_USER:     ${POSTGRES_USER:-guardia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guardiapass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-guardia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardia-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  guardia-net:
+    driver: bridge
